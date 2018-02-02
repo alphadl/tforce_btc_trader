@@ -38,8 +38,8 @@ def calculate_score(advantages):
 def add_common_args(parser):
     parser.add_argument('-g', '--gpu-split', type=float, default=1, help="Num ways we'll split the GPU (how many tabs you running?)")
     parser.add_argument('-n', '--net-type', type=str, default='conv2d')
-    parser.add_argument('-t', '--n-tests', type=int, default=30, help="Number of times to split to training and run a test. This slows things down, so balance graph resolution w/ performance.")
-    parser.add_argument('-s', '--n-steps', type=int, default=300, help="Number of thousands of timesteps total to train.")
+    parser.add_argument('-t', '--n-tests', type=int, default=200, help="Number of times to split to training and run a test. This slows things down, so balance graph resolution w/ performance.")
+    parser.add_argument('-s', '--n-steps', type=int, default=1000, help="Number of 10k timesteps total to train.")
 
 
 # One array per running instance (ie, if you have 2 separate tabs running hypersearch.py, then you'll want an array of
@@ -48,19 +48,21 @@ def add_common_args(parser):
 guess_overrides = [
     [
         {},  # usually want 1 empty dict, which means "try the hard-coded defaults"
-        {'net.depth_post': 2},
+        {'step_optimizer.learning_rate': 7},
+        {'net.l2': 7., 'net.l1': 3.},  # only l1
+        {'net.l1': 7., 'net.l2': 7.},  # off
+        {'update_mode.batch_size': 10},
         {'pct_change': False},
-        {'net.l1': 3},
-        {'net.l2': 3},
-        {'net.dropout': .5},
+        {'net.depth_post': 2},
     ],
     [
+        {'punish_repeats': 20000},
+        {'net.l1': 4., 'net.l2': 4.},  # both
         {'single_action': False},
-        {'repeat_last_state': True},
-        {'punish_repeats': 5000},
+        {'discount': .95},
         {'net.width': 4},
         {'net.width': 8},
-        {'step_optimizer.learning_rate': 7},
+        {'repeat_last_state': True},
     ]
 ]
 

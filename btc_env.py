@@ -46,8 +46,8 @@ class Scaler(object):
     a newb.
     """
 
-    # 400k should be enough data to safely say "I've seen it all, just scale (don't fit) going forward")
-    STOP_AT = 3e5
+    # At some point we can safely say "I've seen enough, just scale (don't fit) going forward")
+    STOP_AT = int(1e6)
     SKIP = 15
 
     # state types
@@ -266,11 +266,12 @@ class BitcoinEnv(Environment):
             # save away for now so we can keep transforming it as we add new data (find a more efficient way)
             self.df = df
         else:
-            self.row_ct = data.count_rows(self.conn, arbitrage=self.hypers.arbitrage)
+            row_ct = data.count_rows(self.conn, arbitrage=self.hypers.arbitrage)
             split = .9  # Using 90% training data.
-            n_train, n_test = int(self.row_ct * split), int(self.row_ct * (1 - split))
+            n_train, n_test = int(row_ct * split), int(row_ct * (1 - split))
             limit, offset = (n_test, n_train) if mode == mode.TEST else (n_train, 0)
             df = data.db_to_dataframe(self.conn, limit=limit, offset=offset, arbitrage=self.hypers.arbitrage)
+            self.row_ct = df.shape[0]
 
         self.observations, self.prices = self._xform_data(df)
         self.prices_diff = self._diff(self.prices, percent=True)
@@ -373,6 +374,7 @@ class BitcoinEnv(Environment):
         # Kill and punish if (a) agent ran out of money; (b) is doing nothing for way too long
         if not self.no_kill and (step_acc.cash < 0 or step_acc.value < 0 or step_acc.repeats >= self.hypers.punish_repeats):
             reward -= 1.  # BTC. Big punishment, like $12k
+            step_acc.value -= (1 - step_acc.i / self.row_ct)  # reflect #steps survived in advantage (for humans and BO)
             terminal = True
         if terminal and self.mode in (Mode.TRAIN, Mode.TEST):
             # We're done.
@@ -442,9 +444,11 @@ class BitcoinEnv(Environment):
         self.acc.episode.uniques.append(n_uniques)
 
         # Print (limit to note-worthy)
-        common = dict((round(k,2), v) for k, v in Counter(signals).most_common(5))
+        lt_0 = len([s for s in signals if s < 0])
+        eq_0 = len([s for s in signals if s == 0])
+        gt_0 = len([s for s in signals if s > 0])
         completion = f"|{int(ep_acc.total_steps / self.n_steps * 100)}%"
-        print(f"{ep_acc.i}|⌛:{step_acc.i}{completion}\tA:{'%.3f'%advantage}\t{common}({n_uniques}uniq)")
+        print(f"{ep_acc.i}|⌛:{step_acc.i}{completion}\tA:{'%.3f'%advantage}\t{lt_0}(<0)|{eq_0}(=0)|{gt_0}(>0)")
         return True
 
     def run_deterministic(self, runner, print_results=True):
@@ -454,7 +458,7 @@ class BitcoinEnv(Environment):
         if print_results: self.episode_finished(None)
 
     def train_and_test(self, agent, n_steps, n_tests, early_stop):
-        self.n_steps = n_steps * 1000
+        self.n_steps = n_steps * 10000
         n_train = self.n_steps // n_tests
         i = 0
         runner = Runner(agent=agent, environment=self)

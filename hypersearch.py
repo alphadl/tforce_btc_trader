@@ -221,15 +221,24 @@ hypers['agent'] = {
         'guess': .99
     },
 }
-# TODO add options to these hypers (all hard-coded)
 hypers['memory_model'] = {
-    'update_mode.unit': 'episodes',
-    'update_mode.batch_size': 20,
-    'update_mode.frequency': 20,
+    'update_mode.unit': 'timesteps',
+    'update_mode.batch_size': {
+        'type': 'int',
+        'vals': [2, 11],
+        'guess': 5,
+        'pre': round,
+        'hydrate': two_to_the
+    },
+    'update_mode.frequency': 4,  # {  TODO don't how to handle this hyper
 
     'memory.type': 'latest',
     'memory.include_next_states': False,
-    'memory.capacity': 5000
+    'memory.capacity': int(1e5),  # {
+    #     'type': 'bounded',
+    #     'vals': [2000, 20000],
+    #     'guess': 5000
+    # }
 }
 hypers['distribution_model'] = {
     # 'distributions': None,
@@ -347,16 +356,17 @@ hypers['custom'] = {
     # Regularization: Dropout, L1, L2. You'd be surprised (or not) how important is the proper combo of these. The RL
     # papers just role L2 (.001) and ignore the other two; but that hasn't jived for me. Below is the best combo I've
     # gotten so far, and I'll update as I go.
-    'net.dropout': {
-        'type': 'bounded',
-        'vals': [0., .2],
-        'guess': .001,
-        'hydrate': min_threshold(.1, None)
-    },
+    'net.dropout': None,  # FIXME not yet supported in tensorforce#memory (https://github.com/reinforceio/tensorforce/issues/317)
+    # {
+    #    'type': 'bounded',
+    #    'vals': [0., .2],
+    #    'guess': .001,
+    #    'hydrate': min_threshold(.1, None)
+    #},
     'net.l2': {
         'type': 'bounded',
         'vals': [0, 7],  # to disable, set to 7 (not 0)
-        'guess': 7.,
+        'guess': 3.,
         'hydrate': min_ten_neg(1e-6, 0.)
     },
     'net.l1': {
@@ -388,8 +398,8 @@ hypers['custom'] = {
     # spanking. I didn't raise no investor, I raised a TRADER
     'punish_repeats': {
         'type': 'bounded',
-        'vals': [5000, 20000],
-        'guess': 20000,
+        'vals': [1000, 20000],
+        'guess': 1000,
         'pre': int
     },
 
